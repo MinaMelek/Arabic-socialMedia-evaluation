@@ -8,7 +8,7 @@ An **Arabic** language-based Sentiment detection and objective topics categoriza
 *	The objective class represents the non-feedback category, so the second task of the module is to categorize the different topics within the objective class and find common inquiries in users feedback.
 *	This module uses four different models for class evaluation, previously trained over hundreds of thousands of Egyptian and Saudi social media interactions and reviews collected from several resources.
 *	The pre-trained models were constructed with different features including the text vectorizing methods and the architecture.
-*	The first model is a fully connected neural network that uses Tf-Idf vectorization; [FCNN_tfidf_model](./models/FCNN_tfidf_model).
+*	The first model is a fully connected neural network that uses Tf-Idf vectorization; [`FCNN_tfidf_model`](./models/FCNN_tfidf_model).
 *	The second model is a fully connected neural network that uses Word2Vec vectorization that was build from scratch on Arabic and English documents using skip-gram training; [FCNN_w2v_model](./models/FCNN_w2v_model).
 *	The third is a bidirectional LSTM-based neural network with Word2Vec vectorization; [FCNN_w2v_lstm_model](./models/FCNN_w2v_lstm_model).
 *	The last model is a simple Lexicon based prediction model.
