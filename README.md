@@ -15,7 +15,7 @@ An **Arabic** language-based Sentiment detection and objective topics categoriza
 
 You can download the word2vec model from this link: 
 
-https://drive.google.com/file/d/1ak7QjRZ0GcFbS-BzCbQU1mkrQEEx_HPr/view?usp=sharing
+https://drive.google.com/file/d/1ak7QjRZ0GcFbS-BzCbQU1mkrQEEx_HPr
 
 
 **NOTE:** use this code in order to load the w2v model:
