@@ -32,7 +32,8 @@ class Evaluate(object):
         self.__version__ = '1.5'
         self.data = data.copy()
         self.message = self.data[text_column].astype(str).copy()
-        self.vectorizer = None
+        self.vect_type = None
+        self.word_vectorizer = None
         self.model_parameters = None
         self.predictions = None
         self.pred_count = 0
@@ -198,18 +199,18 @@ class Evaluate(object):
 
         return self.predictions.apply(lambda x: maj(x.tolist()), axis=1)
         
-    def transform(self, vectorizer="w2v", vect_path=None, vect_model=None):
+    def transform(self, vect_type="w2v", vect_path=None, vect_model=None):
         """vector transform message column for classification
 
         Keyword arguments:
-            vectorizer -- a string value describes the vectorization method used for preparing the data. 
+            vect_type -- a string value describes the vectorization method used for preparing the data. 
                 it can only take either 'tfidf' -> tfidf vectorization, or 'w2v' -> word2vec vectorization (default 'w2v')
-            vect_path -- The path of the vectorizing model, it must match the name specified in 'vectorizer' (default None)
+            vect_path -- The path of the vectorizing model, it must match the name specified in 'vect_type' (default None)
             vect_model (optional) -- an object of the vectorizing model can be given here to save loading time, it must be the same type specified in 'vectorized' (default None)
         """
 
-        self.vectorizer = vectorizer
-        if vectorizer=='tfidf':
+        self.vect_type = vect_type
+        if vect_type=='tfidf':
             if vect_path is None:
                 vect_path = './models/tfidf_features.pkl'
 
@@ -230,25 +231,27 @@ class Evaluate(object):
             X = self.remove_stopwords(X)
             X = tfidf.transform(X).toarray()
 
-        elif vectorizer=='w2v':
+        elif vect_type=='w2v':
             if vect_path is None:
                 vect_path = './models/w2v_model.bin'
 
             # Loading vectorizing model
             print("Loading Word2Vec model ...")
-            if vect_model is None:
+            if self.word_vectorizer:
+                pass
+            elif vect_model is None:
                 w2v_model = KeyedVectors.load_word2vec_format(vect_path, binary=True) if vect_path.endswith('.bin') else Word2Vec.load(vect_path).wv
-                wtv_vect = WordVecVectorizer(w2v_model) # Class defined in utilities.py
+                self.word_vectorizer = WordVecVectorizer(w2v_model) # Class defined in utilities.py
             else:
-                wtv_vect = vect_model
+                self.word_vectorizer = vect_model
 
             # Transformation
             print("Transforming data ...", end=' ')
             X = self.clean()
-            X = wtv_vect.transform(X)
+            X = self.word_vectorizer.transform(X)
 
         else:
-            raise ValueError("vectorizer should only be either 'tfidf' or 'w2v', however you entered {}".format(vectorizer))
+            raise ValueError("vect_type should only be either 'tfidf' or 'w2v', however you entered {}".format(vect_type))
         print("Done.")
 
         return X
@@ -267,7 +270,7 @@ class Evaluate(object):
             print("Loading Lexicons ... ")
             lex_path = './models/Full_lexicons.csv' if lex_path is None else lex_path
             predictions = self.eval_lexicons(lex_path)
-            self.vectorizer = 'lexicons'
+            self.vect_type = 'lexicons'
         else:
             # in case the input is not given
             if input is None:
@@ -290,13 +293,13 @@ class Evaluate(object):
             predictions = model.predict(input).argmax(axis=1)
             predictions = list(map(lambda x: int_category[x], predictions))
         
-        predictions = pd.Series(predictions, name=self.vectorizer)
+        predictions = pd.Series(predictions, name=self.vect_type)
         if self.predictions is None:
             self.predictions = predictions
             self.data['predicted'] = self.predictions.values
         else:
             self.predictions = pd.concat([self.predictions, predictions], axis = 1)
-            if self.vectorizer=='w2v': self.majority_index = self.pred_count
+            if self.vect_type=='w2v': self.majority_index = self.pred_count
             self.data['predicted'] = self.pred_majority(self.majority_index)
         
         self.pred_count += 1
@@ -309,7 +312,7 @@ class Evaluate(object):
 
         # a pre-requisit
         if "predicted" not in self.data.columns:
-            self.predict(model_name='FCNN_'+self.vectorizer+'_model')
+            self.predict(model_name='FCNN_'+self.vect_type+'_model')
 
         print("Adding dictionaries ... ", end=' ')
         
@@ -323,7 +326,7 @@ class Evaluate(object):
         self.data["ALL_Categories"] = ''
 
         stemmed = self.stem()
-        lemmed = self.lemmatize() #TODO: takes too much time # FIXED
+        lemmed = self.lemmatize() # takes too much time # FIXED
         topics, thresholds = self.get_lists()
 
         for idx in self.data.index:
@@ -447,7 +450,7 @@ if __name__ == '__main__':
     wtv_vect = WordVecVectorizer(w2v_model) # Class defined in utilities.py # can be skipped
     
     eval = Evaluate(df)
-    transformed = eval.transform(vectorizer="w2v", vect_model=wtv_vect)
+    transformed = eval.transform(vect_type="w2v", vect_model=wtv_vect)
     predictiones = eval.predict(input=transformed, model_name='FCNN_w2v_model')
     eval.add_dicts()
     eval.visualize()
