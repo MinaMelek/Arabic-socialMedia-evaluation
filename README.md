@@ -1,7 +1,7 @@
 # Arabic-socialMedia-evaluation
 An **Arabic** language-based Sentiment detection and objective topics categorization system.
 
-**NOTE:** The function use case is explained in the `[main.ipynb](./main.ipynb)` file.
+**NOTE:** The function use case is explained in the [`main.ipynb`](./main.ipynb) file.
 
 
 *	This module takes a dataframe of text entries in Arabic (Egypt and KSA dialects) and predicts their Sentiment whether positive, negative or objective.
