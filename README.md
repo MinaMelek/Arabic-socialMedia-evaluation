@@ -1,7 +1,7 @@
 # Arabic-socialMedia-evaluation
 An **Arabic** language-based Sentiment detection and objective topics categorization system.
 
-**NOTE:** The function use case is explained in the `test.ipynb` file.
+**NOTE:** The function use case is explained in the `(./main.ipynb)` file.
 
 
 *	This module takes a dataframe of text entries in Arabic (Egypt and KSA dialects) and predicts their Sentiment whether positive, negative or objective.
@@ -21,4 +21,4 @@ from gensim.models import KeyedVectors
 word2vec = KeyedVectors.load_word2vec_format('./w2v_model.bin', binary=True)
 ```
 
-For more support and info, email me at mina.melek@andalusiagroup.net
+For more support and info, send an email me to: mina.melek@andalusiagroup.net
