@@ -29,7 +29,7 @@ class Evaluate(object):
         if not isinstance(data, pd.core.frame.DataFrame): raise TypeError("data must be a \"pandas dataframe\"")
         if not text_column in data.columns: raise ValueError("You didn't specify the correct column for the text data in the input dataframe")
 
-        self.__version__ = '1.5'
+        self.__version__ = '2.0.2'
         self.data = data.copy()
         self.message = self.data[text_column].astype(str).copy()
         self.vect_type = None
@@ -366,7 +366,11 @@ class Evaluate(object):
         print("Done.")
 
     def visualize(self, kind='pie'):
-        """Visualizing the final data; making tow pie plots for feedback data, inquiry data"""
+        """Visualizing the final data; making tow pie plots for feedback data, inquiry data
+        Keyword arguments:
+            kind -- specifies the type of plot that should be plotted, 
+                takes as values ('pie' or 'bar') each represent a part of the prediction results (default 'pie') 
+        """
         
         # a pre-requisit
         if "ALL_Categories" not in self.data.columns:
@@ -433,13 +437,13 @@ class Evaluate(object):
             
             O = objective_reason.value_counts(sort=False)
             O = pd.DataFrame({'Objective Categories': O.index, 'Count':  O.values})
-            C = sns.barplot(y='Objective Categories', x='Count', data=O, ax=ax_bar[-1])
-            C.axes.set_title("Objective Comments Categories",fontsize=15)
-            C.set_xlabel('Count',fontsize=13)
-            C.set_ylabel('Objective Categories',fontsize=13)
-            C.tick_params(labelsize=11)
+            B = sns.barplot(y='Objective Categories', x='Count', data=O, ax=ax_bar[-1])
+            B.axes.set_title("Objective Comments Categories",fontsize=15)
+            B.set_xlabel('Count',fontsize=13)
+            B.set_ylabel('Objective Categories',fontsize=13)
+            B.tick_params(labelsize=11)
             for index, row in O.iterrows():
-                C.text(row.Count, row.name, row.Count, color='black', ha="left")
+                B.text(row.Count, row.name, row.Count, color='black', ha="left")
         
         plt.show()
 
