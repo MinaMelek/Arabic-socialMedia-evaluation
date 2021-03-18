@@ -18,7 +18,7 @@ You can download the word2vec model from this [link](https://drive.google.com/fi
 **NOTE:** use this code in order to load the w2v model:
 ```python
 from gensim.models import KeyedVectors
-word2vec = KeyedVectors.load_word2vec_format('./w2v_model.bin', binary=True)
+word2vec = KeyedVectors.load_word2vec_format("./models/w2v_model.bin", binary=True)
 ```
 
-For more support and info, send an email me to: mina.melek@andalusiagroup.net
+For more support and info, send an email to: mina.melek@andalusiagroup.net
