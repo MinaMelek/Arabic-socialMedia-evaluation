@@ -13,9 +13,9 @@ An **Arabic** language-based Sentiment detection and objective topics categoriza
 *	The third is a bidirectional LSTM-based neural network with Word2Vec vectorization; [`FCNN_w2v_lstm_model`](./models/FCNN_w2v_lstm_model).
 *	The last model is a simple Lexicon based prediction model.
 
-You can download the word2vec model from this [link](https://drive.google.com/file/d/1ak7QjRZ0GcFbS-BzCbQU1mkrQEEx_HPr)
+You can download the latest version of the word2vec model from this [link](https://drive.google.com/file/d/1ak7QjRZ0GcFbS-BzCbQU1mkrQEEx_HPr)
 
-**NOTE:** use this code in order to load the w2v model:
+To load the w2v model:
 ```python
 from gensim.models import KeyedVectors
 word2vec = KeyedVectors.load_word2vec_format("./models/w2v_model.bin", binary=True)
