@@ -256,39 +256,7 @@ def load_keras_model(model_name, path='models'):
         model = model_from_json(f.read())
     model.load_weights(os.path.join(data_path, model_name+'_weights.hdf5'))
     return model, parameters
-    
-## -- saver class for Word2vec callback
 
-class EpochSaver(CallbackAny2Vec):
-
-    def __init__(self, n_epochs, per_epoch=10, path='.'):
-        self.n_epochs = n_epochs
-        self.per_epoch = per_epoch
-        self.savedir = path
-        self.epoch = 0
-        if not os.path.exists(self.savedir):
-            os.makedirs(self.savedir, exist_ok=True)
-        print('Starting training over {} epochs, saving checkpoints every {} epochs.'.format(self.n_epochs, self.per_epoch))
-
-    def on_epoch_begin(self, model):
-        print("Epoch {}/{} started ... ".format(self.epoch + 1, self.n_epochs))
-
-    def on_epoch_end(self, model):
-        if self.per_epoch is None:
-            pass
-        elif (self.epoch + 1) % self.per_epoch == 0:
-            savepath = os.path.join(self.savedir, "w2v_model_epoch{}.gz".format(self.epoch + 1))
-            model.save(savepath)
-            print(
-                "Epoch {} saved at '{}',".format(self.epoch + 1, savepath), 
-                end='\t'
-                )
-            if os.path.isfile(os.path.join(self.savedir, "w2v_model_epoch{}.gz".format(self.epoch + 1 - self.per_epoch))):
-                print("previous model deleted ", end='')
-                for f in glob.glob(os.path.join(self.savedir, "w2v_model_epoch{}.gz*".format(self.epoch + 1 - self.per_epoch))):
-                    os.remove(f) #!rm -rf $f
-            print()
-        self.epoch += 1
 
 ## -- Word2Vec vectorizer class for classification
         
