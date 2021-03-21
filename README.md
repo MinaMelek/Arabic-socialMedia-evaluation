@@ -5,10 +5,7 @@ An **Arabic** language-based Sentiment detection and objective topics categoriza
 
 
 *	In order to run this module, you should install the packages in [`requirements.txt`](./requirements.txt).
-	Enter the following command in your terminal: 
-```bash
-pip install -r requirements.txt
-```
+	\nEnter the following command in your terminal: `pip install -r requirements.txt`
 *	This module takes a dataframe of text entries in Arabic (Egypt and KSA dialects) and predicts their Sentiment whether positive, negative or objective.
 *	The objective class represents the non-feedback category, so the second task of the module is to categorize the different topics within the objective class and find common inquiries in users feedback.
 *	This module uses four different models for class evaluation, previously trained over hundreds of thousands of Egyptian and Saudi social media interactions and reviews collected from several resources.
