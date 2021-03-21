@@ -1,455 +1,326 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Feb 15 10:32:59 2021
+Created on Sun Jan  3 09:52:47 2021
 
 @author: Mina.Melek
 """
 
-from utilities import * 
-# import os
+# ==== Helper Methods =====
+import os
 import pickle
+import re
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from gensim.models import Word2Vec, KeyedVectors
-from sklearn.feature_extraction.text import TfidfVectorizer
-from keras.optimizers import Adam, Adamax
-import re
-sns.set_theme(style="darkgrid")
+from sklearn.metrics import confusion_matrix
+import nltk
+from nltk.corpus import stopwords
+from nltk import ngrams
+from nltk.stem.isri import ISRIStemmer # arabic stemming
+# from qalsadi import lemmatizer
+from tashaphyne.stemming import ArabicLightStemmer
+from pyarabic.araby import strip_tashkeel
+import contractions
+from keras.models import Model, model_from_json
+from keras.layers import Input, Dense, Dropout
+from gensim.models.callbacks import CallbackAny2Vec
 
-class Evaluate(object):
-    def __init__(self, data, text_column='message'):
-        """Construct the Evaluation class.
+st = ISRIStemmer()
+# lem = lemmatizer.Lemmatizer()
+stm = ArabicLightStemmer()
+nltk.download('stopwords')
+contractions.add("I'd been", "I had been")
 
-        Keyword arguments:
-            data -- a Pandas DataFrame containing the data samples to be processed and evaluated (must be of the type -> 'pandas.core.frame.DataFrame')
-            text_column -- a string represents the name of the target column that contains the text data  (default 'message')
-        """
+# -- specific data cleaning
+# remove repeated sentences in a single text
+def reduce_sent(x):
+    while True:
+        d = len(x)
+        x = re.sub(r'\b([\w\s]+)( \1\b)+', r'\1', x)
+        if len(x) == d:
+            return x
+            
+def remove_longation(text, prefix=False):
+    # English
+    text = contractions.fix(text)
+    text = text.lower()
+    # remove tashkeel
+    text = strip_tashkeel(text)
+    # remove repeated
+    text = re.sub(r'(.)\1+', r'\1\1', text)
+    text = text.replace('اا', 'ا').replace('وو', 'و').replace('يي', 'ي').replace('رر', 'ر')
+    text = re.sub(r'((?<=\A)|(?<=\s))هه(?=\s|\Z)', r'ضحك', text)
+    text = re.sub(r'ـ', '', text)
+    # remove punctuations
+    text = re.sub(r'[^\w\sؠ-ي١-٩]', ' ', text) # replace \w with \d to filter english letters
+    text = re.sub(r'_', ' ', text)
+    # unifying similar letters
+    text = re.sub("[إأآا]", "ا", text)
+    text = re.sub('علے', 'على ', text)
+    text = re.sub(r'ے', '', text)
+    text = re.sub("[ؠىي]", "ي", text)
+    # text = re.sub("يئ", "يء", text)
+    text = re.sub("[ئؽؾؿ]", "ئ", text)# ء
+    # text = re.sub("ؤ", "ء", text)
+    # text = re.sub("ة", "ه", text)
+    text = re.sub("[ؼػگ]", "ك", text)
+    # separate negation signs
+    text = re.sub(r'\bما((\w+))ش\b', r'ما \1', text)
+    text = re.sub(r'((?<=\A)|(?<=\s)|(?<=و))مش\b', r' ما', text)
+    text = re.sub(r'((?<=\A)|(?<=\s)|(?<=و))ليش\b', r' ليه', text)
+    text = re.sub(r'((?<=\A)|(?<=\s)|(?<=و))يا(?=\w)', r' يا ', text)
+    text = re.sub('شاءالله', ' شاء الله', text)
+    text = re.sub('شا الله', ' شاء الله', text)
+    # remove slang begin marks
+    text = re.sub(r'((?<=\A)|(?<=\s))ه(?!نال?ك( |\Z))(?=[ايتن]\w{2,})', '', text)
+    # text = re.sub(r'((?<=\A)|(?<=\s))ب(?=[ايت])', '', text)
+    # text = re.sub(r'((?<=\A)|(?<=\s))ا(?=[يت])', '', text)
+    # remove repeated sentences in a single text
+    # text = reduce_sent(text) #TODO long time
+    # remove prefix
+    if prefix:
+        text = re.sub('((?<=\s)|(?<=\A))(\w?ال)(?=\w{3,})', '', text)
+        text = re.sub('((?<=\s)|(?<=\A))(لل)(?=\w{3,})', '', text)
+    return " ".join(text.split())
 
-        if not isinstance(data, pd.core.frame.DataFrame): raise TypeError("data must be a \"pandas dataframe\"")
-        if not text_column in data.columns: raise ValueError("You didn't specify the correct column for the text data in the input dataframe")
+# preprocessing functions
+def get_stopwords():
+    cachedStopWords = stopwords.words("arabic") + st.stop_words
+    [cachedStopWords.remove(e) for e in ['ما', 'كم', 'كم', 'بكم', 'بكم', 'مساء', 'امسى', 'أمسى', 'كانت']]
+    # print(cachedStopWords)
+    cachedStopWords = sorted(set(remove_longation(" ".join(cachedStopWords)).split(" ") + ['من' , 'و']))
+    cachedStopWords.remove('كان')
+    # print(dict(enumerate(cachedStopWords)))
+    return cachedStopWords
 
-        self.__version__ = '1.5'
-        self.data = data.copy()
-        self.message = self.data[text_column].astype(str).copy()
-        self.vectorizer = None
-        self.model_parameters = None
-        self.predictions = None
-        self.pred_count = 0
-        self.majority_index = -1
-        
-        self.preprocess()
-        
-        
-        
+def remove_stopwords(in_msg_words, stopWords=None, split=False, progress_per=None):
+    if not stopWords: 
+        stopWords = get_stopwords()
 
-    def preprocess(self):
-        """Prepreocess the text message before evaluation"""
-        
-        # function loops over a sentence removing repeated consequent phrases
-        def rep(x):
-            while True:
-                d = len(x)
-                x = re.sub(r'\b([\w\s]+)( \1\b)+', r'\1', x)
-                if len(x) == d:
-                    return x
-                
-        # cleaning message
-        self.clean(pipelined=True);
-        # remove repeated sentences in text
-        self.message = self.message.apply(rep)
-        # #remove samples with only numbers in the text
-        # self.message = self.message[self.message.map(lambda x: not bool(re.match(r'^[\d\s]+$', x)))]
-        # # Remove empty strings after cleaning
-        # self.message = self.message[self.message.map(len)>=3]
-        # # remove duplicates
-        # self.message = self.message.drop_duplicates().dropna()
-        
-        self.data = self.data.loc[self.data.index.isin(self.message.index)]
-        self.data['cleaned'] = self.message
-        self.data.reset_index(inplace=True, drop=True)
-        self.message = self.data['cleaned']
-        
-    def get_lists(self):
-        """return topic modeling lists"""
-        
-        Medical_conslut = 'عندي علاج الم الاسنان العلاج القولون الركبه اعمل عندي الم القلب شديد الحل عندي عمليه وعندي اسنان المعده خشونه الشمال عندي القولون وعملت الم شديد الركبة عملت عملية مفصل العصبي والم الكتف الظهر اسفل المعدة الالم علاج القولون العصبي اليمين التهاب ارتجاع خشونة عندي خشونه طبيعي الاعراض الصدر البطن عنده مشكله سكر تحت غضروف وفي كتفي مشكلة الايسر العمليه مين قولون الركبتين قلب تنميل رجلي عندي ارتجاع ضعف الام بطني نتيجه بحس بكام اسفل الظهر ضغط ورم الرقبه تركيب السكر منظار علاج طبيعي مزمن اية عندي التهاب مستمر بدون باستمرار الغضروف صدري خشونه الركبه ضرس تحليل عندي عندي مشكله النوم العملية حرقان بقالي زراعة التهابات اليمني حقن جامد امساك ايدي اريد قطع وباخد امشي عندها بنتي الكلي عضلة واخدت عندي قولون الحاله عظام والقولون القدم ابني اعاني اليسري مجهود اشعه اسناني رنين طب شديدة تعبانه طبيب دم عندي خشونة فايده علشان الضغط الدم شويه عضله والام كبير امراض واخذت باخد تغير عصبي اقل البول عالي العقل فترة مرض تقويم وارتجاع بسيط خالص مريض فتره الفقري فوق تعبني بعاني وغازات قلبي وزني الكبد عضلة القلب المشي الحوض الايمن فقرات انتفاخ المفاصل ضربات جراحه الوزن ابغي مني علاج عندي امساك الغدة وعايز اثناء عندي مشكلة عندي حرقان عندي عندي اسنان تعب للقولون دلوقتي العظام جسمي دواء الجسم اليد وانتفاخ الفقرات ضربات القلب جراحة الرقبة الثه واخدت علاج الطبيب والعلاج تمزق عضله القلب وسكر عندي اللثة بسبب جامده وضغط فايده التنفس خفقان العصب تلبيس عندي خلع سبب مستشفي عندي قطع المرئ العمود اعراض عندي عندي التهابات ركبتي تاكل الساقين كسر شديده مشاكل عندي الام وكمان عندي سكر اخدت عندي الم الركبه شرخ تضخم الاعصاب اخذ عمليات دهون القدمين علاج جلسات عندي ورم عندي غضروف وامساك وبحس عندي عدم واعصاب مخ التحليل مخ واعصاب اسهال تعبان الرحم العمود الفقري كشفت والكتف المفصل سكر وضغط اليمن وتعبت العلوي لسه السلم حشو الورم وطلع شراين الركبه الشمال مفاصل الحمام انسداد زرع ارتفاع واخذت علاج البراز فظيع لحد نزيف تعبت تغير مفصل تعمل والتهابات الاسنان زراعه الالام بيجي عصب تنظيف الدوالي دائم بالم واخد اقل مجهود الفك رقبتي جرثومة عندي ضغط عندي اعلي اطباء الغده وجود دوالي الاثنين الحمل الفخد هضم عندي تنميل الشريان حمل الشعر علاج ضعف اشاعه حامل تحاليل النسا صوت عارفة اعمل عمليه يدي الدرقية عندي مفصل الركبه علاج القولون الصمام القولون وعندي علاجه كثير اورام خارج مرات الشراين وتورم وضعف علاج مثل علاج الخلف شديد مفتوح السكري الطبيعي ماهو علاج الوجع كيس ادويه مسالك تعباني وكشفت الرباط وضيق مفصل الحوض التنفس عندي فم الكعب معدتي والالم المراره ضعف عضلة تكميم حالتي فهل علاج الفقره كيلو اناعندي'
-        service_support = 'تامين عندكم عندكم تامين التعاونيه تامين التعاونيه لديكم تامين التامين تامين تامين عندكم يقبل التعاونية يشمل تامين التعاونية عندكم يغطي تقبلو شركة عندكم تقبلو تامين عندكم الراجحي تامين تامين صحي شركات تقبلون تامين صحي تقبلون تامين متوفر ميد تامين ميد تقبل كلاس تتعاملوا عندكم عندكم تبع تكافل يقبل تامين فئة تامين كلاس تامين تكافل مقبول تكافل الراجحي تعاقد تابع عندكم تتعاملون تقبلوا عندكم متاح عندكم لديكم جهاز بطاقة شركه عندكوا خصم للتامين ميد تامين بالتقسيط عندكم ميد متعاقدين التامين عندكم شركات التامين عيادة عندكن اسوي توجد الصحي موجوده التامين الصحي جهاز بتامين اماكن الكورونا استفيد التعامل ارغب بالتامين كورونا لشركة التامينات عيادات اختصاص الخاصة الصحه تبع التامين استفسر تسجيل كرونا ضمن انتو الهضمي بتتعاملوا تتعاملو التامين العروض التامين الشركات استعلم هل للشركات التسجيل'
-        PriceBooking_inquiry ='رقم مواعيد وكم علاج احجز السعر حجز مواعيد التواصل وبكم وكم السعر كام عروض مواعيد والاسعار موعد الحجز العرض ارقام الخدمة احجز بكام عرض تليفون سعرها تكلفة وكام تتكلف التليفون رقم تليفون رقم التليفون للحجز لحجز تكلفتها سعر خدمة التكلفة التواصل رقم حجزت تلفون عاوز التكاليف العرض رقم رقم تلفون تكلف معرفة اسعار الموعد سعر الهاتف وكم تكلفتها احجز جوال متواجد احجز موعد سجلت العرض مناسب رقم جوال رقم الهاتف يكلف جوالي رقم جوالي اتواصل ميعاد ماهي عاوز وقت سعره خصومات عايزه تكلفة بدي الرقم اخر زرع التركيبات تكلفه ارسال رقم سعرها كام التكلفه مبلغ كام كم بكم تفاصيل التفاصيل تكلف كلف سعر تليفون رقم مواعيد نحجز'
-        place_inquiry = 'فين المكان مكان المكان فين عنوان فين المكان المركز جده فين مكان وين العنوان مكانها عنوان فين مصر القاهرة مكانكم الموقع موقعكم جدة موقع فضلك فين موقع فين مكانها اين مكان فين الموقع مكان عنوانكم العنوان فين مكان الاسكندرية القاهره وين المكان مدينة اسكندريه والمكان اندلسيه الاندلسية السعودية حي سموحة بجده الجامعه مكه اسكندرية حي الجامعه فرعكم فروعكم الفرع الشلالات واين حي سموحة المعادي بحي الرياض المكرونه حي مصر الاندلسيه بالقاهرة وفين سموحه الاسكندريه وين الموقع وين موقعكم المعادي عنوان مكان فرع فين موقع وين التحلية'
-
-        obj_lists = {'Medical_consult': Medical_conslut,
-                     'support': service_support,
-                     'PriceBooking': PriceBooking_inquiry,
-                     'place': place_inquiry}
-        
-        thresholds = dict(zip(obj_lists.keys(), [0.0033, 0.01, 0.01, 0.015]))
-        
-        return obj_lists, thresholds
-
-
-    def get_data(self):
-        """returns the data DF"""
-
-        return self.data
-
-
-
-    def clean(self, input=None, add_to_df=False, pipelined=False):
-        """apply text cleaning steps to the message column
-        
-        Keyword arguments:
-            input -- the input series to be processed (default None)
-                **Note** - if the value isn't None, it's expected to be used in a pipeline. 
-            add_to_df -- a boolean value; if true, it adds the result as a seprate column to the dataframe (default False)
-            piplined -- a boolean value; if true, it overwrite self.message with the new transformation for a pipeline (default False) 
-        """
-
-        if input is None:
-            input = self.message
-        cleaned = clean_df(input) # Function defined in utilities.py
-        if add_to_df:
-            self.data["cleaned"] = cleaned
-        if pipelined:
-            self.message = cleaned
-        return cleaned
-
-    def stem(self, input=None, add_to_df=False, pipelined=False):
-        """apply stemming to the message column
-        
-        Keyword arguments:
-            input -- the input series to be processed (default None)
-                **Note** - if the value isn't None, it's expected to be used in a pipeline. 
-            add_to_df -- a boolean value; if true, it adds the result as a seprate column to the dataframe (default False)
-            piplined -- a boolean value; if true, it overwrite self.message with the new transformation for a pipeline (default False) 
-        """
-
-        if input is None:
-            input = self.message
-        stemmed = stem(input) # Function defined in utilities.py, clean text before stemmed
-        if add_to_df:
-            self.data["stemmed"] = stemmed
-        if pipelined:
-            self.message = stemmed
-        return stemmed
-
-    def lemmatize(self, input=None, add_to_df=False, pipelined=False):
-        """apply lemmatization to the message column
-        
-        Keyword arguments:
-            input -- the input series to be processed (default None)
-                **Note** - if the value isn't None, it's expected to be used in a pipeline. 
-            add_to_df -- a boolean value; if true, it adds the result as a seprate column to the dataframe (default False)
-            piplined -- a boolean value; if true, it overwrite self.message with the new transformation for a pipeline (default False) 
-        """
-        # takes too much time #FIXED
-        if input is None:
-            input = self.message
-        lemmatized = lemma(input) # Function defined in utilities.py, clean text before lemmatization
-        if add_to_df:
-            self.data["lemmatized"] = lemmatized
-        if pipelined:
-            self.message = lemmatized
-        return lemmatized
-
-    def remove_stopwords(self, input=None, add_to_df=False, pipelined=False, stopWords=None, split=False, progress_per=None):
-        """remove stopwords from the message column
-        
-        Keyword arguments:
-            input -- the input series to be processed (default None)
-                **Note** - if the value isn't None, it's expected to be used in a pipeline. 
-            add_to_df -- a boolean value; if true, it adds the result as a seprate column to the dataframe (default False)
-            piplined -- a boolean value; if true, it overwrite self.message with the new transformation for a pipeline (default False) 
-        """
-
-        if input is None:
-            input = self.message
-        no_sw = remove_stopwords(input, stopWords, split, progress_per) # Function defined in utilities.py
-        if add_to_df:
-            self.data["without_stopwords"] = no_sw
-        if pipelined:
-            self.message = no_sw
-        return no_sw
-    
-    def eval_lexicons(self, lex_path, threshold=0):
-        """evaluate a lexicon-based prediction on the data, the lexicons are a dictionary of words labeled according to their polarity; 
-        ideally: positive sentiment words have a polarity of +1 and negative sentiment words have a polarity of -1
-        
-        Keyword arguments:
-            lex_path -- a string represents a path to the file.csv containing lexicons (polarity should be in range [-1 : 1])
-            threshold (optional) -- an int value represents a threshold between the positive and negative labels that define the difference in polarity (default 0)
-        """
-        
-        assert lex_path.endswith('.csv'), "You must enter a valid path to a lexicons csv file"
-        lex = pd.read_csv(lex_path, index_col=0)
-        return self.message.map(lambda x: sum([lex.loc[w].polarity if w in lex.index else threshold for w in get_all_ngrams(x)])).map(lambda x: 'pos' if x>threshold else 'neg' if x<threshold else 'obj')
-    
-    def pred_majority(self, majority_index=-1):
-        """calculate the majority voting for multiple predictions, incase more than one model was used for prediction
-        Keyword arguments:
-            majority_index -- an integer value represent the index of predictions column that should be selected in case of no majority (default -1)
-        """
-        
-        assert majority_index < self.pred_count+1, "the value of 'majority_index' is {}, which is higher than number of predictions".format(majority_index)
-        def maj(x):
-            if max(map(x.count, x)) == 1:
-                return x[majority_index]
-            return max(x, key=x.count)
-
-        return self.predictions.apply(lambda x: maj(x.tolist()), axis=1)
-        
-    def transform(self, vectorizer="w2v", vect_path=None, vect_model=None):
-        """vector transform message column for classification
-
-        Keyword arguments:
-            vectorizer -- a string value describes the vectorization method used for preparing the data. 
-                it can only take either 'tfidf' -> tfidf vectorization, or 'w2v' -> word2vec vectorization (default 'w2v')
-            vect_path -- The path of the vectorizing model, it must match the name specified in 'vectorizer' (default None)
-            vect_model (optional) -- an object of the vectorizing model can be given here to save loading time, it must be the same type specified in 'vectorized' (default None)
-        """
-
-        self.vectorizer = vectorizer
-        if vectorizer=='tfidf':
-            if vect_path is None:
-                vect_path = './models/tfidf_features.pkl'
-
-            # Loading vectorizing model
-            print("Loading Tf-Idf model ...")
-            if vect_model is None:
-                with open(vect_path, 'rb') as fid:
-                    vocabulary = pickle.load(fid)
-                    idfs = pickle.load(fid)
-                tfidf = TfidfVectorizer(tokenizer=str.split, lowercase= False, ngram_range=(1,2), max_features=5000, vocabulary=vocabulary )#, max_df=0.7, min_df=5)#, preprocessor=sents, stop_words=cachedStopWords)
-                tfidf.idf_=idfs
-            else:
-                tfidf = vect_model
-
-            # Transformation
-            print("Transforming data ...", end=' ')
-            X = self.stem()
-            X = self.remove_stopwords(X)
-            X = tfidf.transform(X).toarray()
-
-        elif vectorizer=='w2v':
-            if vect_path is None:
-                vect_path = './models/w2v_model.bin'
-
-            # Loading vectorizing model
-            print("Loading Word2Vec model ...")
-            if vect_model is None:
-                w2v_model = KeyedVectors.load_word2vec_format(vect_path, binary=True) if vect_path.endswith('.bin') else Word2Vec.load(vect_path).wv
-                wtv_vect = WordVecVectorizer(w2v_model) # Class defined in utilities.py
-            else:
-                wtv_vect = vect_model
-
-            # Transformation
-            print("Transforming data ...", end=' ')
-            X = self.clean()
-            X = wtv_vect.transform(X)
-
+    out_msg_words = in_msg_words.copy()
+    for idx in in_msg_words.index:
+        #go through each word in each msg_words row, remove stopwords, and set them on the index.
+        if split:
+            out_msg_words[idx] = [word for word in in_msg_words[idx].split() if word not in stopWords]
         else:
-            raise ValueError("vectorizer should only be either 'tfidf' or 'w2v', however you entered {}".format(vectorizer))
-        print("Done.")
-
-        return X
-
-    def predict(self, input=None, model_name='FCNN_w2v_model', lexicon_prediction=False, lex_path=None):
-        """Evaluate the FCNN model and produce predictions
-
-        Keyword arguments:
-            input -- a numpy array represent the transformed data; it should be the output of self.transform in the shape (# of samples, features_dim) (default None). 
-            model_name -- a string represents the name of the folder, which contains the model, the full path would be './models/model_name' (default 'FCNN_w2v_model)
-            lexicon_prediction -- a boolean value indicates the use of lexicons for prediction instead of model evaluation (default False)
-            lex_path --  a string represents a path to the file.csv containing lexicons; used when lexicon_prediction = True (default None)
-        """
-
-        if lexicon_prediction:
-            print("Loading Lexicons ... ")
-            lex_path = './models/Full_lexicons.csv' if lex_path is None else lex_path
-            predictions = self.eval_lexicons(lex_path)
-            self.vectorizer = 'lexicons'
-        else:
-            # in case the input is not given
-            if input is None:
-                input = self.transform("w2v")
-            # Loading the classification model
-            print("Loading Classification model ... ")
-            model, parameters = load_keras_model(model_name) # Function defined in utilities.py
-            # Defining parameters
-            self.model_parameters = parameters
-            dense_layers, opt_name, batch_size, lr, decay, int_category = self.model_parameters['param']
-            cats = len(int_category)
-            input_shape = (input.shape[1], )
-            if opt_name=='Adamax':
-                opt = Adamax(lr=lr, decay=decay)
-            else:
-                opt = Adam(lr=lr, decay=decay)
-            model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-            # Evaluating the model
-            print("Evaluating the model ...", end=' ')
-            predictions = model.predict(input).argmax(axis=1)
-            predictions = list(map(lambda x: int_category[x], predictions))
+            out_msg_words[idx] = " ".join([word for word in in_msg_words[idx].split() if word not in stopWords])
         
-        predictions = pd.Series(predictions, name=self.vectorizer)
-        if self.predictions is None:
-            self.predictions = predictions
-            self.data['predicted'] = self.predictions.values
-        else:
-            self.predictions = pd.concat([self.predictions, predictions], axis = 1)
-            if self.vectorizer=='w2v': self.majority_index = self.pred_count
-            self.data['predicted'] = self.pred_majority(self.majority_index)
-        
-        self.pred_count += 1
-        print("Done.")
+        #print logs to monitor output
+        if not progress_per:
+            continue
+        if idx % progress_per == 0:
+            print('\rc = ' + str(idx) + ' / ' + str(len(in_msg_words)))
+    return out_msg_words
 
-        return self.data['predicted']
-
-    def add_dicts(self):
-        """Categorize topics for the text data with respect to a dictionary"""
-
-        # a pre-requisit
-        if "predicted" not in self.data.columns:
-            self.predict(model_name='FCNN_'+self.vectorizer+'_model')
-
-        print("Adding dictionaries ... ", end=' ')
-        
-        def jaccard_similarity(query, document):
-            intersection = set(query.split()).intersection(set(document.split()))
-            union = set(query.split()).union(set(document.split()))
-            return len(intersection)/len(union)
-        
-        self.data["tags"] = ""
-        self.data["inquiry"] = 0
-        self.data["ALL_Categories"] = ''
-
-        stemmed = self.stem()
-        lemmed = self.lemmatize() #TODO: takes too much time # FIXED
-        topics, thresholds = self.get_lists()
-
-        for idx in self.data.index:
-
-            # Adding "tags" and "inquiry" columns
-            sentence = stemmed.loc[idx].split() + lemmed.loc[idx].split()
-            if any(e in sentence for e in ['ماد' ,'دفع' ,'مبلغ','مبالغ', 'ثمن','تمن', 'كام' ,'كم', 'بكم', 'كلف', 'سعر', 'جنيه', 'ريال', 'خصم', 'غال', 'فلس', 'مجان','مجا', 'رخص']): self.data.at[idx, 'tags'] += 'price-'; self.data.at[idx, 'inquiry'] = 1
-            if any(e in sentence for e in ['خدم', 'دري', 'مدير', 'ادار', 'نتظار', 'نتظر',  'شخيص' ,'طويل', 'استقبال' ,'معامل']): self.data.at[idx, 'tags'] += 'service-'; self.data.at[idx, 'inquiry'] = 1
-            if any(e in sentence for e in ['موقف', 'مواقف', 'مصعد', 'دور', 'مبن', 'زدحام', 'زحم']): self.data.at[idx, 'tags'] += 'structure-'; self.data.at[idx, 'inquiry'] = 1
-            if 'تامين' in self.message.loc[idx]: self.data.at[idx, 'tags'] += 'insurance-'; self.data.at[idx, 'inquiry'] = 1
-            if any(e in sentence for e in ['ساع', 'مت', 'معاد', 'ميعاد', 'موعد', 'مواعيد', 'وقت' ,'تخر']): self.data.at[idx, 'tags'] += 'datetime-'; self.data.at[idx, 'inquiry'] = 1
-            if any(e in sentence for e in ['موجود', 'عنو', 'روح', 'مك', 'مكان', 'فرع', 'فين', 'موقع', 'وين']): self.data.at[idx, 'tags'] += 'place-'; self.data.at[idx, 'inquiry'] = 1
-            for k, v in topics.items():
-                if jaccard_similarity(self.message.loc[idx], v) >= thresholds[k]:
-                    if 'price-' in self.data.loc[idx, 'tags'] and k=='PriceBooking':
-                        continue
-                    self.data.at[idx, 'tags'] += k+'-'; self.data.at[idx, 'inquiry'] = 1 
-            if any(e in sentence for e in ['عند' ,'عا' ,'علاج' ,'كيف', 'علم', 'رجاء', 'محتاج', 'عايز', 'عاوز', 'تفاصيل', 'رجو', 'عرف', 'هل', 'ايش', 'ايه', 'ازي', 'معلش', 'سمح', 'مين', 'ياري', 'مكن', 'ليه']): self.data.at[idx, 'inquiry'] = 1 # general
-            
-            # Adding "ALL_Categories" column
-            if self.data.predicted[idx] in ['pos', 'neg']: #if self.data.at[idx, 'inquiry']==0:
-                self.data.at[idx, 'ALL_Categories'] = 'Positive-Feedback' if self.data.predicted[idx]=='pos' else 'Negative-Feedback'# if self.data.predicted[idx]=='neg' else 'Other'
-            elif self.data.at[idx, 'inquiry']==1:
-                if self.data.at[idx, 'tags']=='price-': self.data.at[idx, 'ALL_Categories'] = 'Price-Inquiry'
-                elif self.data.at[idx, 'tags']=='place-': self.data.at[idx, 'ALL_Categories'] = 'Place-Inquiry'
-                elif self.data.at[idx, 'tags']=='datetime-': self.data.at[idx, 'ALL_Categories'] = 'Appointments-Inquiry'
-                elif self.data.at[idx, 'tags']=='insurance-': self.data.at[idx, 'ALL_Categories'] = 'Insurance-Inquiry'
-                elif self.data.at[idx, 'tags']=='service-': self.data.at[idx, 'ALL_Categories'] = 'Services-Inquiry'
-                elif self.data.at[idx, 'tags']=='Medical_consult-': self.data.at[idx, 'ALL_Categories'] = 'Medical-Consultation'
-                elif self.data.at[idx, 'tags']=='support-': self.data.at[idx, 'ALL_Categories'] = 'Insurance-Inquiry'
-                elif self.data.at[idx, 'tags']=='PriceBooking-': self.data.at[idx, 'ALL_Categories'] = 'Booking-Inquiry'
-                elif self.data.at[idx, 'tags']=='' : self.data.at[idx, 'ALL_Categories'] = 'General-Inquiry' #np.isnan(self.data.at[idx, 'tags'])
-                else: self.data.at[idx, 'ALL_Categories'] = 'Mixed-Inquiries'
-            else:
-                self.data.at[idx, 'ALL_Categories'] = 'General Conversation'
-        
-        print("Done.")
-
-    def visualize(self, kind='pie'):
-        """Visualizing the final data; making tow pie plots for feedback data, inquiry data"""
-        
-        # a pre-requisit
-        if "ALL_Categories" not in self.data.columns:
-            self.add_dicts()
-        
-        print("Visualizing ...")
-        if kind=='pie':
-            fig1, ax_pie = plt.subplots(1, 2, figsize=(13, 26))
-            
-            FB = ["Positive-Feedback", "Negative-Feedback"]
-            feedback = self.data.query('ALL_Categories in @FB').ALL_Categories.value_counts()
-            ax_pie[0].set_title('Categories\' feedback Percentage', fontsize=12)
-            feedback.plot(kind='pie', labels=feedback.index,
-                        wedgeprops=dict(width=.7), autopct='%1.0f%%', startangle= -20, 
-                        textprops={'fontsize': 10}, ax=ax_pie[0])
-            
-            inquiries = self.data.query('ALL_Categories not in @FB').ALL_Categories.value_counts()
-            ax_pie[1].set_title('Categories\' inquiries Percentage', fontsize=12)
-            inquiries.plot(kind='pie', labels=inquiries.index,
-                                        wedgeprops=dict(width=.7), autopct='%1.0f%%', startangle= -20, 
-                                        textprops={'fontsize': 10}, ax=ax_pie[1])
-
-        if kind=='bar':
-            fig2, ax_bar = plt.subplots(2, 1, figsize=(9, 12))
-            
-            NEG = self.data.query("predicted=='neg'")
-            negative_reason = NEG.tags.str.rstrip('-').str.split('-').explode().replace({'': 'General Service Complaints',
-                                                                                         'price': 'High Prices',
-                                                                                         'service': 'Specified Service',
-                                                                                         'datetime': 'Appointments',
-                                                                                         'place': 'Location-Related',
-                                                                                         'structure': 'InfraStructure-Related',
-                                                                                         'insurance': 'Insurance Issues',
-                                                                                         'Medical_consult': 'Consultation Issues',
-                                                                                         'support': 'Insurance Issues',
-                                                                                         'PriceBooking': 'Booking issue'
-                                                                                         })
-            
-            N = negative_reason.value_counts(sort=False).drop(index='Location-Related')
-            N = pd.DataFrame({'Negative reason': N.index, 'Count':  N.values})
-            A = sns.barplot(y='Negative reason', x='Count', data=N, ax=ax_bar[0])
-            A.axes.set_title("Negative feedback Complaints Categories",fontsize=15)
-            A.set_xlabel('Count',fontsize=13)
-            A.set_ylabel('Negative reason',fontsize=13)
-            A.tick_params(labelsize=11)
-            for index, row in N.iterrows():
-                A.text(row.Count, row.name, row.Count, color='black', ha="left")
-            
-            # ============================================================================================================= #
-            OBJ = self.data.query("predicted=='obj'")
-            OBJ.loc[OBJ.inquiry==0, 'tags'] = 'gen-'
-            objective_reason = OBJ.tags.str.rstrip('-').str.split('-').explode().replace({'': 'General Inquiry',
-                                                                                          'price': 'Price Inquiry',
-                                                                                          'service': 'Service Inquiry',
-                                                                                          'datetime': 'Appointment Inquiry',
-                                                                                          'place': 'Location Inquiry',
-                                                                                          'structure': 'General Inquiry',
-                                                                                          'insurance': 'Insurance Inquiry',
-                                                                                          'support': 'Insurance Inquiry',
-                                                                                          'Medical_consult': 'Medical-Consultation',
-                                                                                          'PriceBooking': 'Booking-Inquiry',
-                                                                                          'gen': 'General Conversation'
-                                                                                         })
-            
-            O = objective_reason.value_counts(sort=False)
-            O = pd.DataFrame({'Objective Categories': O.index, 'Count':  O.values})
-            C = sns.barplot(y='Objective Categories', x='Count', data=O, ax=ax_bar[-1])
-            C.axes.set_title("Objective Comments Categories",fontsize=15)
-            C.set_xlabel('Count',fontsize=13)
-            C.set_ylabel('Objective Categories',fontsize=13)
-            C.tick_params(labelsize=11)
-            for index, row in O.iterrows():
-                C.text(row.Count, row.name, row.Count, color='black', ha="left")
-        
-        plt.show()
-
-
-if __name__ == '__main__':
-    df = pd.read_csv("./data/data.csv")
-    w2v_model = Word2Vec.load('./models/w2v_checkpoints/w2v_model_epoch15.gz') # can be skipped
-    wtv_vect = WordVecVectorizer(w2v_model) # Class defined in utilities.py # can be skipped
+# def remove_stopwords(in_msg_words, stopWords=None, split=False):
+#     if not stopWords: 
+#         stopWords = get_stopwords()
     
-    eval = Evaluate(df)
-    transformed = eval.transform(vectorizer="w2v", vect_model=wtv_vect)
-    predictiones = eval.predict(input=transformed, model_name='FCNN_w2v_model')
-    eval.add_dicts()
-    eval.visualize()
-    Final_data = eval.get_data()
-    print(Final_data.sample(5, random_state=10))
+#     if split:
+#         out_msg_words = in_msg_words.apply(lambda x: re.sub(r'\b('+"|".join(stopWords)+r')(\W|\Z)', '', str(x)).split())
+#     else:
+#         out_msg_words = in_msg_words.apply(lambda x: re.sub(r'\b('+"|".join(stopWords)+r')(\W|\Z)', '', str(x)))
+        
+#     return out_msg_words
+
+def stem(message):
+    return message.apply(lambda x: " ".join([st.stem(w) for w in remove_longation(str(x)).split()]))
+
+def lemma(message):
+    return message.apply(lambda x: " ".join([stm.light_stem(w) for w in x.split()]))
+
+def clean_df(message):
+    return message.astype(str).apply(remove_longation)
+
+def get_vec(n_model,dim, token):
+    vec = np.zeros(dim)
+    is_vec = False
+    if token not in n_model.wv:
+        _count = 0
+        is_vec = True
+        for w in token.split("_"):
+            if w in n_model.wv:
+                _count += 1
+                vec += n_model.wv[w]
+        if _count > 0:
+            vec = vec / _count
+    else:
+        vec = n_model.wv[token]
+    return vec
+
+def calc_vec(pos_tokens, neg_tokens, n_model, dim):
+    vec = np.zeros(dim)
+    for p in pos_tokens:
+        vec += get_vec(n_model,dim,p)
+    for n in neg_tokens:
+        vec -= get_vec(n_model,dim,n)
+    
+    return vec   
+
+## -- Retrieve all ngrams for a text in between a specific range
+def get_all_ngrams(text, nrange=3):
+    text = re.sub(r'[\,\.\;\(\)\[\]\_\+\#\@\!\?\؟\^]', ' ', text)
+    tokens = [token for token in text.split(" ") if token.strip() != ""]
+    if len(tokens) < 2:
+        return tokens
+    ngs = []
+    for n in range(2,nrange+1):
+        ngs += [ng for ng in ngrams(tokens, n)]
+    return tokens + ["_".join(ng) for ng in ngs if len(ng)>0 ]
+
+## -- Retrieve all ngrams for a text in a specific n
+def get_ngrams(text, n=2):
+    text = re.sub(r'[\,\.\;\(\)\[\]\_\+\#\@\!\?\؟\^]', ' ', text)
+    tokens = [token for token in text.split(" ") if token.strip() != ""]
+    ngs = [ng for ng in ngrams(tokens, n)]
+    return ["_".join(ng) for ng in ngs if len(ng)>0 ]
+
+## -- filter the existed tokens in a specific model
+def get_existed_tokens(tokens, n_model):
+    return [tok for tok in tokens if tok in n_model.wv ]
+
+## -- visualize confusion matrix using seaborn
+def plot_cm(y_true, y_pred, labels=None, figsize=None):
+    if not labels:
+        labels = np.unique(y_true)
+    cm = confusion_matrix(y_true, y_pred, labels=np.unique(y_true))
+    cm_sum = np.sum(cm, axis=1, keepdims=True)
+    cm_perc = cm / cm_sum.astype(float) * 100
+    annot = np.empty_like(cm).astype(str)
+    nrows, ncols = cm.shape
+    for i in range(nrows):
+        for j in range(ncols):
+            c = cm[i, j]
+            p = cm_perc[i, j]
+            if i == j:
+                s = cm_sum[i]
+                annot[i, j] = '%.1f%%\n%d/%d' % (p, c, s)
+            elif c == 0:
+                annot[i, j] = ''
+            else:
+                annot[i, j] = '%.1f%%\n%d' % (p, c)
+    cm = pd.DataFrame(cm, index=labels, columns=labels)
+    cm.index.name = 'Actual'
+    cm.columns.name = 'Predicted'
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.heatmap(cm, cmap= "YlGnBu", annot=annot, fmt='', ax=ax)
+
+## -- save train/val data
+def save_train_val_data(x_train, y_train, x_val, y_val, int_category, category_int):
+#    np.save('./data/x_train_np.npy', x_train)
+#    np.save('./data/y_train_np.npy', y_train)
+#    np.save('./data/x_val_np.npy', x_val)
+#    np.save('./data/y_val_np.npy', y_val)
+#    np.savez_compressed('data/All_Data_np.npz',
+#                        x_train=x_train, y_train=y_train, x_val=x_val, y_val=y_val)
+    filename = os.path.join('data', 'train_val_data.dat')
+    with open(filename, 'wb') as handle:
+        pickle.dump(x_train, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(y_train, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(x_val, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(y_val, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(int_category, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(category_int, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+## -- load train/val data
+def read_train_val_data():
+    """Instead of running the entire pipeline at all times."""
+    filename = os.path.join('data', 'train_val_data.dat') ##@
+    with open(filename, 'rb') as handle:
+        x_train = pickle.load(handle)
+        y_train = pickle.load(handle)
+        x_val = pickle.load(handle)
+        y_val = pickle.load(handle)
+        int_category = pickle.load(handle)
+        category_int = pickle.load(handle)
+    return (x_train, y_train), (x_val, y_val), int_category, category_int
+    
+    
+## -- save and load keras model
+def save_keras_model(model, parameters, model_name, path='models'):
+    data_path = os.path.join(path, model_name)
+    if not os.path.exists(data_path):
+        os.makedirs(data_path)
+    model.save_weights(os.path.join(data_path, model_name+'_weights.hdf5'))
+    with open(os.path.join(data_path, model_name+'_architecture.json'), 'w') as f:
+        f.write(model.to_json())
+    with open(os.path.join(data_path, model_name+'_parameters.pkl'), 'wb') as fid:
+        pickle.dump(parameters, fid)    
+        
+def load_keras_model(model_name, path='models'):
+    data_path = os.path.join(path, model_name)
+    with open(os.path.join(data_path, model_name+'_parameters.pkl'), 'rb') as fid:
+        parameters = pickle.load(fid)
+    with open(os.path.join(data_path, model_name+'_architecture.json'), 'r') as f:
+        model = model_from_json(f.read())
+    model.load_weights(os.path.join(data_path, model_name+'_weights.hdf5'))
+    return model, parameters
+    
+## -- saver class for Word2vec callback
+
+class EpochSaver(CallbackAny2Vec):
+
+    def __init__(self, n_epochs, per_epoch=10, path='.'):
+        self.n_epochs = n_epochs
+        self.per_epoch = per_epoch
+        self.savedir = path
+        self.epoch = 0
+        if not os.path.exists(self.savedir):
+            os.makedirs(self.savedir, exist_ok=True)
+        print('Starting training over {} epochs, saving checkpoints every {} epochs.'.format(self.n_epochs, self.per_epoch))
+
+    def on_epoch_begin(self, model):
+        print("Epoch {}/{} started ... ".format(self.epoch + 1, self.n_epochs))
+
+    def on_epoch_end(self, model):
+        if self.per_epoch is None:
+            pass
+        elif (self.epoch + 1) % self.per_epoch == 0:
+            savepath = os.path.join(self.savedir, "w2v_model_epoch{}.gz".format(self.epoch + 1))
+            model.save(savepath)
+            print(
+                "Epoch {} saved at '{}',".format(self.epoch + 1, savepath), 
+                end='\t'
+                )
+            if os.path.isfile(os.path.join(self.savedir, "w2v_model_epoch{}.gz".format(self.epoch + 1 - self.per_epoch))):
+                print("previous model deleted ", end='')
+                for f in glob.glob(os.path.join(self.savedir, "w2v_model_epoch{}.gz*".format(self.epoch + 1 - self.per_epoch))):
+                    os.remove(f) #!rm -rf $f
+            print()
+        self.epoch += 1
+
+## -- Word2Vec vectorizer class for classification
+        
+class WordVecVectorizer(object):
+    def __init__(self, word2vec, max_len=50):
+        self.word2vec = word2vec
+        self.dim = word2vec.vector_size
+        self.max_len = max_len
+
+    def fit(self, X, y):
+        return self    
+
+    def transform(self, X):
+        """
+        Transforms a document to one vector of a size = word2vec.vector_size (dim), 
+        by taking the mean of th vectors of every word.
+        The output size will be of shape (X.shape[0], self.dim).
+        """
+        return np.array([
+            np.mean([self.word2vec[w] for w in texts.split() if w in self.word2vec]
+                    or [np.zeros(self.dim)], axis=0)
+            for texts in X
+        ])
+        
+    def instance_transform(self, X):
+        """
+        Transforms a document to a 3D array based on the word2vec vector transformation of every instance (word),
+        while the words that exceeds the maximum allowable length (max_len) will be removed.
+        If the sentance is less than max_len, it will be padded with zeros.
+        The output size will be of shape (X.shape[0], self.max_len, self.dim).
+        """
+        return np.array([
+            [self.word2vec[w] if w in self.word2vec else np.zeros(self.dim) for i, w in enumerate(texts.split()) if i<self.max_len] + [np.zeros(self.dim)]*(self.max_len-min(self.max_len, len(texts.split())))
+            for texts in X
+        ])
