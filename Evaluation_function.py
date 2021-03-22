@@ -29,10 +29,10 @@ class Evaluate(object):
         if not isinstance(data, pd.core.frame.DataFrame): raise TypeError("data must be a \"pandas dataframe\"")
         if not text_column in data.columns: raise ValueError("You didn't specify the correct column for the text data in the input dataframe")
 
-        self.__version__ = '1.5'
+        self.__version__ = '2.5'
         self.data = data.copy()
         self.message = self.data[text_column].astype(str).copy()
-        self.vect_type = None
+        self.vect_type = 'w2v'
         self.word_vectorizer = None
         self.model_parameters = None
         self.predictions = None
@@ -251,6 +251,7 @@ class Evaluate(object):
             X = self.clean()
             if lstm:
                 X = self.word_vectorizer.instance_transform(X) # transforms each word individually to the word2vec vector; returns shape=(len(X), max_len=50, word2vec_dim=300)
+                self.vect_type += '_lstm'
             else: 
                 X = self.word_vectorizer.transform(X) # transforms a sentence to a word2vec vector by taking average of all the words' vectors; returns shape=(len(X), word2vec_dim=300)
 
@@ -450,13 +451,17 @@ class Evaluate(object):
 
 if __name__ == '__main__':
     df = pd.read_csv("./data/data.csv")
-    w2v_model = Word2Vec.load('./models/w2v_checkpoints/w2v_model_epoch15.gz') # can be skipped
-    wtv_vect = WordVecVectorizer(w2v_model) # Class defined in utilities.py # can be skipped
+    
+    print("Loading word2vec (Externally) ..", end=' ')
+    word2vec = KeyedVectors.load_word2vec_format('./models/w2v_model.bin', binary=True)
+    vect_model = WordVecVectorizer(word2vec)
+    print("Done.")
     
     eval = Evaluate(df)
-    transformed = eval.transform(vect_type="w2v", vect_model=wtv_vect)
+    transformed = eval.transform(vect_type="w2v", vect_model=vect_model)
     predictiones = eval.predict(input=transformed, model_name='FCNN_w2v_model')
     eval.add_dicts()
-    eval.visualize()
+    eval.visualize(kind='pie')
+    eval.visualize(kind='bar')
     Final_data = eval.get_data()
     print(Final_data.sample(5, random_state=10))
