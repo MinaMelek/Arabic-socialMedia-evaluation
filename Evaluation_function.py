@@ -29,7 +29,7 @@ class Evaluate(object):
         if not isinstance(data, pd.core.frame.DataFrame): raise TypeError("data must be a \"pandas dataframe\"")
         if not text_column in data.columns: raise ValueError("You didn't specify the correct column for the text data in the input dataframe")
 
-        self.__version__ = '2.5'
+        self.__version__ = '2.7'
         self.data = data.copy()
         self.message = self.data[text_column].astype(str).copy()
         self.vect_type = 'w2v'
@@ -193,12 +193,12 @@ class Evaluate(object):
         
         assert majority_index < self.pred_count+1, "the value of 'majority_index' is {}, which is higher than number of predictions".format(majority_index)
         def maj(x):
-            if max(map(x.count, x)) == 1:
+            if all([x.count(y)==x.count(x[0]) for y in x]):
                 return x[majority_index]
             return max(x, key=x.count)
-
-        return self.predictions.apply(lambda x: maj(x.tolist()), axis=1)
         
+        return self.predictions.apply(lambda x: maj(x.tolist()), axis=1)
+
     def transform(self, vect_type="w2v", lstm=False, vect_path=None, vect_model=None):
         """vector transform message column for classification
 
@@ -304,7 +304,7 @@ class Evaluate(object):
             self.data['predicted'] = self.predictions.values
         else:
             self.predictions = pd.concat([self.predictions, predictions], axis = 1)
-            if self.vect_type=='w2v': self.majority_index = self.pred_count
+            if 'w2v' in self.vect_type: self.majority_index = self.pred_count
             self.data['predicted'] = self.pred_majority(self.majority_index)
         
         self.pred_count += 1
