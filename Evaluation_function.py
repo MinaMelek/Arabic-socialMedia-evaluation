@@ -41,8 +41,6 @@ class Evaluate(object):
         
         self.preprocess()
         
-        
-        
 
     def preprocess(self):
         """Prepreocess the text message before evaluation"""
@@ -354,6 +352,7 @@ class Evaluate(object):
             # Adding "ALL_Categories" column
             if self.data.predicted[idx] in ['pos', 'neg']: #if self.data.at[idx, 'inquiry']==0:
                 self.data.at[idx, 'ALL_Categories'] = 'Positive-Feedback' if self.data.predicted[idx]=='pos' else 'Negative-Feedback'# if self.data.predicted[idx]=='neg' else 'Other'
+                if self.data.predicted[idx] == 'pos' and all(e not in sentence for e in ['سعر', 'جنيه', 'ريال', 'خصم', 'فلس', 'مجان','مجا', 'رخص']): self.data.tags[idx].replace('price-', '')
             elif self.data.at[idx, 'inquiry']==1:
                 if self.data.at[idx, 'tags']=='price-': self.data.at[idx, 'ALL_Categories'] = 'Price-Inquiry'
                 elif self.data.at[idx, 'tags']=='place-': self.data.at[idx, 'ALL_Categories'] = 'Place-Inquiry'
@@ -395,7 +394,7 @@ class Evaluate(object):
                                         textprops={'fontsize': 10}, ax=ax_pie[1])
 
         if kind=='bar':
-            fig2, ax_bar = plt.subplots(2, 1, figsize=(9, 12))
+            fig2, ax_bar = plt.subplots(3, 1, figsize=(9, 18))
             
             NEG = self.data.query("predicted=='neg'")
             negative_reason = NEG.tags.str.rstrip('-').str.split('-').explode().replace({'': 'General Service Complaints',
@@ -410,7 +409,11 @@ class Evaluate(object):
                                                                                          'PriceBooking': 'Booking issue'
                                                                                          })
             
-            N = negative_reason.value_counts(sort=False).drop(index='Location-Related')
+            N = negative_reason.value_counts(sort=False)
+            try:
+                N = N.drop(index='Location-Related')
+            except:
+                pass
             N = pd.DataFrame({'Negative reason': N.index, 'Count':  N.values})
             A = sns.barplot(y='Negative reason', x='Count', data=N, ax=ax_bar[0])
             A.axes.set_title("Negative feedback Complaints Categories",fontsize=15)
@@ -419,6 +422,32 @@ class Evaluate(object):
             A.tick_params(labelsize=11)
             for index, row in N.iterrows():
                 A.text(row.Count, row.name, row.Count, color='black', ha="left")
+            
+            # ============================================================================================================= #
+            POS = self.data.query("predicted=='pos'")
+            POS.loc[:, 'tags'] = POS.tags.str.replace(r'^(PriceBooking-|support-)$', 'service-')
+            positive_reason = POS.tags.str.rstrip('-').str.split('-').explode().replace({'': 'Praise - Complement',
+                                                                                         'price': 'Price Satisfaction',
+                                                                                         'service': 'Service Satisfaction',
+                                                                                         'datetime': 'Suitable Appointments',
+                                                                                         'place': 'Suitable Location - Structure',
+                                                                                         'structure': 'Suitable Location - Structure',
+                                                                                         # 'insurance': 'Insurance Pass',
+                                                                                         'Medical_consult': 'Medical Satisfaction',
+                                                                                         # 'support': 'Insurance Pass',
+                                                                                         # 'PriceBooking': 'Booking'
+                                                                                         })
+            
+            P = positive_reason.value_counts(sort=False)
+            [P.drop(index=i, inplace=True) for i in ['PriceBooking', 'support', 'insurance'] if i in P.index]
+            P = pd.DataFrame({'Positive reason': P.index, 'Count':  P.values})
+            B = sns.barplot(y='Positive reason', x='Count', data=P, ax=ax_bar[1])
+            B.axes.set_title("Positive feedback reasons Categories",fontsize=15)
+            B.set_xlabel('Count',fontsize=13)
+            B.set_ylabel('Positive reason',fontsize=13)
+            B.tick_params(labelsize=11)
+            for index, row in P.iterrows():
+                B.text(row.Count, row.name, row.Count, color='black', ha="left")
             
             # ============================================================================================================= #
             OBJ = self.data.query("predicted=='obj'")
