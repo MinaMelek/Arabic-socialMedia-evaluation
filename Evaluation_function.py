@@ -29,7 +29,7 @@ class Evaluate(object):
         if not isinstance(data, pd.core.frame.DataFrame): raise TypeError("data must be a \"pandas dataframe\"")
         if not text_column in data.columns: raise ValueError("You didn't specify the correct column for the text data in the input dataframe")
 
-        self.__version__ = '2.7'
+        self.__version__ = '2.9'
         self.data = data.copy()
         self.message = self.data[text_column].astype(str).copy()
         self.vect_type = 'w2v'
