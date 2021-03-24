@@ -24,6 +24,7 @@ from pyarabic.araby import strip_tashkeel
 import contractions
 from keras.models import Model, model_from_json
 from keras.layers import Input, Dense, Dropout
+from keras.layers import LSTM, SimpleRNN, GRU, Bidirectional, GlobalMaxPool1D
 from gensim.models.callbacks import CallbackAny2Vec
 
 st = ISRIStemmer()
@@ -236,6 +237,28 @@ def read_train_val_data():
         category_int = pickle.load(handle)
     return (x_train, y_train), (x_val, y_val), int_category, category_int
     
+## -- build keras model
+def modelBuild(input_shape, layers, dense_out, lstm=False, name=None):
+    NumLyrs = len(layers)
+    sentence_indices = Input(input_shape, name="input")
+    X = sentence_indices
+    dense_start = 0
+    if lstm:
+        X = Bidirectional(LSTM(layers[0], dropout=0.45, return_sequences=True, name="lstm_1"), 
+                        #   backward_layer=LSTM(layers[0], activation='relu', return_sequences=True,  go_backwards=True, name="lstm_2"), 
+                          name="bidirectional")(X)
+        # X = GlobalMaxPool1D(name="global_max_pooling1d")(X)
+        X = SimpleRNN(layers[0], dropout=0.55)(X)
+        dense_start += 1
+    # The returned output should be a batch of sequences.
+    for layer in range(dense_start, NumLyrs):
+        X = Dense(layers[layer], activation='relu', name="dense_{}".format(layer))(X)
+        X = Dropout(0.45, name="dropout_{}".format(layer))(X)
+    X = Dense(dense_out, activation='softmax', name="dense_{}".format(NumLyrs))(X) # Number of classes
+    # Create Model instance which converts sentence_indices into X.
+    model = Model(inputs=sentence_indices, outputs=X, name=name)
+    return model
+
     
 ## -- save and load keras model
 def save_keras_model(model, parameters, model_name, path='models'):
@@ -252,11 +275,17 @@ def load_keras_model(model_name, path='models'):
     data_path = os.path.join(path, model_name)
     with open(os.path.join(data_path, model_name+'_parameters.pkl'), 'rb') as fid:
         parameters = pickle.load(fid)
-    with open(os.path.join(data_path, model_name+'_architecture.json'), 'r') as f:
-        model = model_from_json(f.read())
+    # with open(os.path.join(data_path, model_name+'_architecture.json'), 'r') as f:
+    #     model = model_from_json(f.read())
+    dense_layers, opt_name, batch_size, lr, decay, int_category = parameters['param']
+    cats = len(int_category)
+    shape = (5000, 50, 300)
+    input_shape = shape[1:] if 'w2v_lstm' in model_name else shape[2:] if 'w2v' in model_name else shape[:1]
+    lstm = True if '_lstm_' in model_name else False
+    model = modelBuild(input_shape, dense_layers, cats, lstm=lstm)
     model.load_weights(os.path.join(data_path, model_name+'_weights.hdf5'))
     return model, parameters
-
+    
 
 ## -- Word2Vec vectorizer class for classification
         
@@ -277,7 +306,7 @@ class WordVecVectorizer(object):
         """
         return np.array([
             np.mean([self.word2vec[w] for w in texts.split() if w in self.word2vec]
-                    or [np.zeros(self.dim)], axis=0)
+                    or [1e-12 * np.random.normal(scale=0.6, size=self.dim)], axis=0)
             for texts in X
         ])
         
@@ -289,6 +318,6 @@ class WordVecVectorizer(object):
         The output size will be of shape (X.shape[0], self.max_len, self.dim).
         """
         return np.array([
-            [self.word2vec[w] if w in self.word2vec else np.zeros(self.dim) for i, w in enumerate(texts.split()) if i<self.max_len] + [np.zeros(self.dim)]*(self.max_len-min(self.max_len, len(texts.split())))
+            [self.word2vec[w] if w in self.word2vec else 1e-12 * np.random.normal(scale=0.6, size=self.dim) for i, w in enumerate(texts.split()) if i<self.max_len] + [1e-12 * np.random.normal(scale=0.6, size=self.dim)]*(self.max_len-min(self.max_len, len(texts.split())))
             for texts in X
         ])
