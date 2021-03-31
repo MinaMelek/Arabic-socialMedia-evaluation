@@ -310,8 +310,8 @@ class Evaluate(object):
 
         with open("models/dictionary_lists.pkl", 'rb') as fid:
             med_topics = pickle.load(fid)
-            topics = pickle.load(fid)
-            categories = pickle.load(fid)
+            topics = pickle.load(fid) # a dictionary (key: value); the key represents a topic name, while the value is a list of the topic dictionary
+            categories = pickle.load(fid) # a dictionary (key: value); the key represents a topic name, while the value is the final category name
         
         def tag(record):
             sentence = get_all_ngrams(record.cleaned, 2) 
