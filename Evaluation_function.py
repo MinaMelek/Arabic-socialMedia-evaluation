@@ -29,7 +29,7 @@ class Evaluate(object):
         if not isinstance(data, pd.core.frame.DataFrame): raise TypeError("data must be a \"pandas dataframe\"")
         if not text_column in data.columns: raise ValueError("You didn't specify the correct column for the text data in the input dataframe")
 
-        self.__version__ = '2.9'
+        self.__version__ = '3.1'
         self.data = data.copy()
         self.message = self.data[text_column].astype(str).copy()
         self.vect_type = 'w2v'
@@ -69,23 +69,6 @@ class Evaluate(object):
         self.data.reset_index(inplace=True, drop=True)
         self.message = self.data['cleaned']
         
-    # def get_lists(self):
-    #     """return topic modeling lists"""
-        
-    #     Medical_conslut = 'عندي علاج الم الاسنان العلاج القولون الركبه اعمل عندي الم القلب شديد الحل عندي عمليه وعندي اسنان المعده خشونه الشمال عندي القولون وعملت الم شديد الركبة عملت عملية مفصل العصبي والم الكتف الظهر اسفل المعدة الالم علاج القولون العصبي اليمين التهاب ارتجاع خشونة عندي خشونه طبيعي الاعراض الصدر البطن عنده مشكله سكر تحت غضروف وفي كتفي مشكلة الايسر العمليه مين قولون الركبتين قلب تنميل رجلي عندي ارتجاع ضعف الام بطني نتيجه بحس بكام اسفل الظهر ضغط ورم الرقبه تركيب السكر منظار علاج طبيعي مزمن اية عندي التهاب مستمر بدون باستمرار الغضروف صدري خشونه الركبه ضرس تحليل عندي عندي مشكله النوم العملية حرقان بقالي زراعة التهابات اليمني حقن جامد امساك ايدي اريد قطع وباخد امشي عندها بنتي الكلي عضلة واخدت عندي قولون الحاله عظام والقولون القدم ابني اعاني اليسري مجهود اشعه اسناني رنين طب شديدة تعبانه طبيب دم عندي خشونة فايده علشان الضغط الدم شويه عضله والام كبير امراض واخذت باخد تغير عصبي اقل البول عالي العقل فترة مرض تقويم وارتجاع بسيط خالص مريض فتره الفقري فوق تعبني بعاني وغازات قلبي وزني الكبد عضلة القلب المشي الحوض الايمن فقرات انتفاخ المفاصل ضربات جراحه الوزن ابغي مني علاج عندي امساك الغدة وعايز اثناء عندي مشكلة عندي حرقان عندي عندي اسنان تعب للقولون دلوقتي العظام جسمي دواء الجسم اليد وانتفاخ الفقرات ضربات القلب جراحة الرقبة الثه واخدت علاج الطبيب والعلاج تمزق عضله القلب وسكر عندي اللثة بسبب جامده وضغط فايده التنفس خفقان العصب تلبيس عندي خلع سبب مستشفي عندي قطع المرئ العمود اعراض عندي عندي التهابات ركبتي تاكل الساقين كسر شديده مشاكل عندي الام وكمان عندي سكر اخدت عندي الم الركبه شرخ تضخم الاعصاب اخذ عمليات دهون القدمين علاج جلسات عندي ورم عندي غضروف وامساك وبحس عندي عدم واعصاب مخ التحليل مخ واعصاب اسهال تعبان الرحم العمود الفقري كشفت والكتف المفصل سكر وضغط اليمن وتعبت العلوي لسه السلم حشو الورم وطلع شراين الركبه الشمال مفاصل الحمام انسداد زرع ارتفاع واخذت علاج البراز فظيع لحد نزيف تعبت تغير مفصل تعمل والتهابات الاسنان زراعه الالام بيجي عصب تنظيف الدوالي دائم بالم واخد اقل مجهود الفك رقبتي جرثومة عندي ضغط عندي اعلي اطباء الغده وجود دوالي الاثنين الحمل الفخد هضم عندي تنميل الشريان حمل الشعر علاج ضعف اشاعه حامل تحاليل النسا صوت عارفة اعمل عمليه يدي الدرقية عندي مفصل الركبه علاج القولون الصمام القولون وعندي علاجه كثير اورام خارج مرات الشراين وتورم وضعف علاج مثل علاج الخلف شديد مفتوح السكري الطبيعي ماهو علاج الوجع كيس ادويه مسالك تعباني وكشفت الرباط وضيق مفصل الحوض التنفس عندي فم الكعب معدتي والالم المراره ضعف عضلة تكميم حالتي فهل علاج الفقره كيلو اناعندي'
-    #     service_support = 'تامين عندكم عندكم تامين التعاونيه تامين التعاونيه لديكم تامين التامين تامين تامين عندكم يقبل التعاونية يشمل تامين التعاونية عندكم يغطي تقبلو شركة عندكم تقبلو تامين عندكم الراجحي تامين تامين صحي شركات تقبلون تامين صحي تقبلون تامين متوفر ميد تامين ميد تقبل كلاس تتعاملوا عندكم عندكم تبع تكافل يقبل تامين فئة تامين كلاس تامين تكافل مقبول تكافل الراجحي تعاقد تابع عندكم تتعاملون تقبلوا عندكم متاح عندكم لديكم جهاز بطاقة شركه عندكوا خصم للتامين ميد تامين بالتقسيط عندكم ميد متعاقدين التامين عندكم شركات التامين عيادة عندكن اسوي توجد الصحي موجوده التامين الصحي جهاز بتامين اماكن الكورونا استفيد التعامل ارغب بالتامين كورونا لشركة التامينات عيادات اختصاص الخاصة الصحه تبع التامين استفسر تسجيل كرونا ضمن انتو الهضمي بتتعاملوا تتعاملو التامين العروض التامين الشركات استعلم هل للشركات التسجيل'
-    #     PriceBooking_inquiry ='رقم مواعيد وكم علاج احجز السعر حجز مواعيد التواصل وبكم وكم السعر كام عروض مواعيد والاسعار موعد الحجز العرض ارقام الخدمة احجز بكام عرض تليفون سعرها تكلفة وكام تتكلف التليفون رقم تليفون رقم التليفون للحجز لحجز تكلفتها سعر خدمة التكلفة التواصل رقم حجزت تلفون عاوز التكاليف العرض رقم رقم تلفون تكلف معرفة اسعار الموعد سعر الهاتف وكم تكلفتها احجز جوال متواجد احجز موعد سجلت العرض مناسب رقم جوال رقم الهاتف يكلف جوالي رقم جوالي اتواصل ميعاد ماهي عاوز وقت سعره خصومات عايزه تكلفة بدي الرقم اخر زرع التركيبات تكلفه ارسال رقم سعرها كام التكلفه مبلغ كام كم بكم تفاصيل التفاصيل تكلف كلف سعر تليفون رقم مواعيد نحجز'
-    #     place_inquiry = 'فين المكان مكان المكان فين عنوان فين المكان المركز جده فين مكان وين العنوان مكانها عنوان فين مصر القاهرة مكانكم الموقع موقعكم جدة موقع فضلك فين موقع فين مكانها اين مكان فين الموقع مكان عنوانكم العنوان فين مكان الاسكندرية القاهره وين المكان مدينة اسكندريه والمكان اندلسيه الاندلسية السعودية حي سموحة بجده الجامعه مكه اسكندرية حي الجامعه فرعكم فروعكم الفرع الشلالات واين حي سموحة المعادي بحي الرياض المكرونه حي مصر الاندلسيه بالقاهرة وفين سموحه الاسكندريه وين الموقع وين موقعكم المعادي عنوان مكان فرع فين موقع وين التحلية'
-
-    #     obj_lists = {'Medical_consult': Medical_conslut,
-    #                  'insurance': service_support,
-    #                  'PriceBooking': PriceBooking_inquiry,
-    #                  'place': place_inquiry}
-        
-    #     thresholds = dict(zip(obj_lists.keys(), [0.0033, 0.01, 0.01, 0.015]))
-        
-    #     return obj_lists, thresholds
-
 
     def get_data(self):
         """returns the data DF"""
@@ -319,18 +302,12 @@ class Evaluate(object):
 
         print("Adding dictionaries ... ", end=' ')
         
-        # def jaccard_similarity(query, document):
-        #     intersection = set(query.split()).intersection(set(document.split()))
-        #     union = set(query.split()).union(set(document.split()))
-        #     return len(intersection)/len(union)
-        
+
         self.data["tags"] = ""
         self.data["inquiry"] = 0
         self.data["ALL_Categories"] = ''
 
-        # stemmed = self.stem()
-        # lemmed = self.lemmatize() # takes too much time # FIXED
-        # topics, thresholds = self.get_lists()
+
         with open("models/dictionary_lists.pkl", 'rb') as fid:
             med_topics = pickle.load(fid)
             topics = pickle.load(fid)
@@ -351,40 +328,7 @@ class Evaluate(object):
             return record
             
         self.data = self.data.apply(tag, axis=1)
-        # for idx in self.data.index:
 
-        #     # Adding "tags" and "inquiry" columns
-        #     sentence = get_all_ngrams(self.message.loc[idx], 2) #stemmed.loc[idx].splitPriceBooking() + lemmed.loc[idx].split()
-        #     if any(e in sentence for e in topics['price']): self.data.at[idx, 'tags'] += 'price-'; self.data.at[idx, 'inquiry'] = 1
-        #     if any(e in sentence for e in topics['service']): self.data.at[idx, 'tags'] += 'service-'; self.data.at[idx, 'inquiry'] = 1
-        #     if any(e in sentence for e in topics['structure']): self.data.at[idx, 'tags'] += 'structure-'; self.data.at[idx, 'inquiry'] = 1
-        #     if any(e in sentence for e in topics['insurance']): self.data.at[idx, 'tags'] += 'insurance-'; self.data.at[idx, 'inquiry'] = 1
-        #     if any(e in sentence for e in topics['datetime']): self.data.at[idx, 'tags'] += 'datetime-'; self.data.at[idx, 'inquiry'] = 1
-        #     if any(e in sentence for e in topics['place']): self.data.at[idx, 'tags'] += 'place-'; self.data.at[idx, 'inquiry'] = 1
-        #     for k, v in topics.items():
-        #         if jaccard_similarity(self.message.loc[idx], v) >= thresholds[k]:
-        #             if 'price-' in self.data.loc[idx, 'tags'] and k=='PriceBooking':
-        #                 continue
-        #             self.data.at[idx, 'tags'] += k+'-'; self.data.at[idx, 'inquiry'] = 1 
-        #     if any(e in sentence for e in ['عند' ,'عا' ,'علاج' ,'كيف', 'علم', 'رجاء', 'محتاج', 'عايز', 'عاوز', 'تفاصيل', 'رجو', 'عرف', 'هل', 'ايش', 'ايه', 'ازي', 'معلش', 'سمح', 'مين', 'ياري', 'مكن', 'ليه']): self.data.at[idx, 'inquiry'] = 1 # general
-            
-        #     # Adding "ALL_Categories" column
-        #     if self.data.predicted[idx] in ['pos', 'neg']: #if self.data.at[idx, 'inquiry']==0:
-        #         self.data.at[idx, 'ALL_Categories'] = 'Positive-Feedback' if self.data.predicted[idx]=='pos' else 'Negative-Feedback'# if self.data.predicted[idx]=='neg' else 'Other'
-        #         if self.data.predicted[idx] == 'pos' and all(e not in sentence for e in ['سعر', 'جنيه', 'ريال', 'خصم', 'فلس', 'مجان','مجا', 'رخص']): self.data.tags[idx].replace('price-', '')
-        #     elif self.data.at[idx, 'inquiry']==1:
-        #         if self.data.at[idx, 'tags']=='price-': self.data.at[idx, 'ALL_Categories'] = 'Price-Inquiry'
-        #         elif self.data.at[idx, 'tags']=='place-': self.data.at[idx, 'ALL_Categories'] = 'Place-Inquiry'
-        #         elif self.data.at[idx, 'tags']=='datetime-': self.data.at[idx, 'ALL_Categories'] = 'Appointments-Inquiry'
-        #         elif self.data.at[idx, 'tags']=='insurance-': self.data.at[idx, 'ALL_Categories'] = 'Insurance-Inquiry'
-        #         elif self.data.at[idx, 'tags']=='service-': self.data.at[idx, 'ALL_Categories'] = 'Services-Inquiry'
-        #         elif self.data.at[idx, 'tags']=='Medical_consult-': self.data.at[idx, 'ALL_Categories'] = 'Medical-Consultation'
-        #         elif self.data.at[idx, 'tags']=='PriceBooking-': self.data.at[idx, 'ALL_Categories'] = 'Booking-Inquiry'
-        #         elif self.data.at[idx, 'tags']=='' : self.data.at[idx, 'ALL_Categories'] = 'General-Inquiry' #np.isnan(self.data.at[idx, 'tags'])
-        #         else: self.data.at[idx, 'ALL_Categories'] = 'Mixed-Inquiries'
-        #     else:
-        #         self.data.at[idx, 'ALL_Categories'] = 'General Conversation'
-        
         print("Done.")
 
     def visualize(self, kind='pie'):
