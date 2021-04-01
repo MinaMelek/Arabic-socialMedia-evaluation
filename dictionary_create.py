@@ -97,13 +97,13 @@ obj_lists['Medical_consult'].remove(intersections['Medical_consult+insurance'][1
 
 # Categories names
 cats_list = {'Medical_consult-': 'Medical-Consultation',
+             'price-':  'Price-Inquiry',
+             'datetime-': 'Appointments-Inquiry',
+             'service-': 'Services-Inquiry',
+             'structure-': 'Services-Inquiry',
              'insurance-': 'Insurance-Inquiry',
              'Booking-': 'Booking-Inquiry',
              'place-': 'Location-Inquiry',
-             'price-':  'Price-Inquiry',
-             'service-': 'Services-Inquiry',
-             'structure-': 'Services-Inquiry',
-             'datetime-': 'Appointments-Inquiry',
              '': 'General-Inquiry',
              }
 
