@@ -315,7 +315,7 @@ class Evaluate(object):
         
         def tag(record):
             sentence = get_all_ngrams(record.cleaned, 2) 
-            record.tags = "".join([key+'-' for key in topics.keys() if any(e in sentence for e in topics[key])])
+            record.tags = "".join([key+'-' for key in topics.keys() if any(e in sentence for e in topics[key]) and key!='general'])
             record.inquiry = 1 * (bool(record.tags) or any(e in sentence for e in topics['general']))
             if record.predicted in ['pos', 'neg']: 
                 record.ALL_Categories = 'Positive-Feedback' if record.predicted =='pos' else 'Negative-Feedback'
@@ -367,7 +367,7 @@ class Evaluate(object):
                                                                                          'structure': 'InfraStructure-Related',
                                                                                          'insurance': 'Insurance Issues',
                                                                                          'Medical_consult': 'Consultation Issues',
-                                                                                         'PriceBooking': 'Booking issue'
+                                                                                         'Booking': 'Booking issue'
                                                                                          })
             
             N = negative_reason.value_counts(sort=False)
@@ -386,7 +386,7 @@ class Evaluate(object):
             
             # ============================================================================================================= #
             POS = self.data.query("predicted=='pos'")
-            POS.loc[:, 'tags'] = POS.tags.str.replace(r'^(PriceBooking-)$', 'service-')
+            POS.loc[:, 'tags'] = POS.tags.str.replace(r'^(Booking-)$', 'service-')
             positive_reason = POS.tags.str.rstrip('-').str.split('-').explode().replace({'': 'Praise - Complement',
                                                                                          'price': 'Price Satisfaction',
                                                                                          'service': 'Service Satisfaction',
@@ -395,11 +395,11 @@ class Evaluate(object):
                                                                                          'structure': 'Suitable Location - Structure',
                                                                                          # 'insurance': 'Insurance Pass',
                                                                                          'Medical_consult': 'Medical Satisfaction',
-                                                                                         # 'PriceBooking': 'Booking'
+                                                                                         # 'Booking': 'Booking'
                                                                                          })
             
             P = positive_reason.value_counts(sort=False)
-            [P.drop(index=i, inplace=True) for i in ['PriceBooking', 'insurance'] if i in P.index]
+            [P.drop(index=i, inplace=True) for i in ['Booking', 'insurance'] if i in P.index]
             P = pd.DataFrame({'Positive reason': P.index, 'Count':  P.values})
             B = sns.barplot(y='Positive reason', x='Count', data=P, ax=ax_bar[1])
             B.axes.set_title("Positive feedback reasons Categories",fontsize=15)
@@ -420,7 +420,7 @@ class Evaluate(object):
                                                                                           'structure': 'General Inquiry',
                                                                                           'insurance': 'Insurance Inquiry',
                                                                                           'Medical_consult': 'Medical Consultation',
-                                                                                          'PriceBooking': 'Booking Inquiry',
+                                                                                          'Booking': 'Booking Inquiry',
                                                                                           'gen': 'General Conversation'
                                                                                          })
             
