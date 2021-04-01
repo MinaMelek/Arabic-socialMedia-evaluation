@@ -316,7 +316,7 @@ class Evaluate(object):
         def tag(record):
             sentence = get_all_ngrams(record.cleaned, 2) 
             record.tags = "".join([key+'-' for key in topics.keys() if any(e in sentence for e in topics[key])])
-            record.inquiry = 1 * (bool(record.tags) or any(e in sentence for e in ['انا_عندي' ,'عندي' ,'علاج' ,'كيف', 'علم', 'رجاء', 'محتاج', 'عايز', 'عاوز', 'تفاصيل', 'ارجو', 'عرف', 'عارف', 'اعرف', 'هل', 'ايش', 'ايه', 'ازاي', 'معلش', 'سمح', 'سمحت', 'لو_سمحت', 'لوسمحت', 'مين', 'ياريت', 'ممكن', 'ليه']))
+            record.inquiry = 1 * (bool(record.tags) or any(e in sentence for e in topics['general']))
             if record.predicted in ['pos', 'neg']: 
                 record.ALL_Categories = 'Positive-Feedback' if record.predicted =='pos' else 'Negative-Feedback'
             elif record.inquiry==1:
