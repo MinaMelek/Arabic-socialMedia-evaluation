@@ -77,13 +77,13 @@ insurance -= price
 insurance -= place_inquiry
 
 obj_lists = {'Medical_consult': Medical_conslut,
+             'price':  price,
+             'datetime': datetime,
+             'service': service,
+             'structure': structure,
              'insurance': insurance,
              'Booking': Booking_inquiry,
              'place': place_inquiry,
-             'price':  price,
-             'service': service,
-             'structure': structure,
-             'datetime': datetime,
              'general': general,
              }
 
