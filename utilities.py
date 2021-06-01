@@ -23,6 +23,8 @@ from tashaphyne.stemming import ArabicLightStemmer
 from pyarabic.araby import strip_tashkeel
 import contractions
 from keras.models import Model, model_from_json
+# from keras.layers import Input, Dense, Dropout, LSTM, SimpleRNN, GRU, Bidirectional, GlobalMaxPool1D, Embedding
+# import keras.backend as K
 from gensim.models.callbacks import CallbackAny2Vec
 
 st = ISRIStemmer()
@@ -30,6 +32,7 @@ st = ISRIStemmer()
 stm = ArabicLightStemmer()
 nltk.download('stopwords')
 contractions.add("I'd been", "I had been")
+contractions.add("u r", "you are")
 
 # -- specific data cleaning
 # remove repeated sentences in a single text
@@ -58,11 +61,11 @@ def remove_longation(text, prefix=False):
     text = re.sub("[إأآا]", "ا", text)
     text = re.sub('علے', 'على ', text)
     text = re.sub(r'ے', '', text)
-    text = re.sub("[ؠىي]", "ي", text)
+    text = re.sub("[ؠىيﯽ]", "ي", text)
     # text = re.sub("يئ", "يء", text)
     text = re.sub("[ئؽؾؿ]", "ئ", text)# ء
     # text = re.sub("ؤ", "ء", text)
-    # text = re.sub("ة", "ه", text)
+    text = re.sub("ة", "ه", text)
     text = re.sub("[ؼػگ]", "ك", text)
     # separate negation signs
     text = re.sub(r'\bما((\w+))ش\b', r'ما \1', text)
@@ -112,16 +115,16 @@ def remove_stopwords(in_msg_words, stopWords=None, split=False, progress_per=Non
             print('\rc = ' + str(idx) + ' / ' + str(len(in_msg_words)))
     return out_msg_words
 
-# def remove_stopwords(in_msg_words, stopWords=None, split=False):
-#     if not stopWords: 
-#         stopWords = get_stopwords()
+def remove_stopwords_v2(in_msg_words, stopWords=None, split=False):
+    if not stopWords: 
+        stopWords = get_stopwords()
     
-#     if split:
-#         out_msg_words = in_msg_words.apply(lambda x: re.sub(r'\b('+"|".join(stopWords)+r')(\W|\Z)', '', str(x)).split())
-#     else:
-#         out_msg_words = in_msg_words.apply(lambda x: re.sub(r'\b('+"|".join(stopWords)+r')(\W|\Z)', '', str(x)))
+    if split:
+        out_msg_words = in_msg_words.apply(lambda x: re.sub(r'\b('+"|".join(stopWords)+r')\b', '', str(x)).split())
+    else:
+        out_msg_words = in_msg_words.apply(lambda x: re.sub(r'\b('+"|".join(stopWords)+r')\b', '', str(x)))
         
-#     return out_msg_words
+    return out_msg_words
 
 def stem(message):
     return message.apply(lambda x: " ".join([st.stem(w) for w in remove_longation(str(x)).split()]))
@@ -235,6 +238,39 @@ def read_train_val_data():
         category_int = pickle.load(handle)
     return (x_train, y_train), (x_val, y_val), int_category, category_int
     
+# ## -- build keras model
+# def modelBuild(input_shape, layers, dense_out, w_mat=None, lstm=False, name=None):
+#     NumLyrs = len(layers)
+#     dense_start = 0
+#     if w_mat is not None: # weights_matrix
+#         sentence_indices = Input(input_shape, name="input", dtype='int32')
+#         X = Embedding(*w_mat.shape, 
+#                       weights=[w_mat],
+#                       input_length=maxlen, 
+#                       trainable=False,
+#                       name='embedding')(sentence_indices)
+#         if lstm:
+#             X = Bidirectional(LSTM(layers[0], dropout=0.45, return_sequences=True, name="lstm_1"), 
+#                             #   backward_layer=LSTM(layers[0], activation='relu', return_sequences=True,  go_backwards=True, name="lstm_2"), 
+#                             name="bidirectional")(X)
+#             X = GlobalMaxPool1D(name="global_max_pooling1d")(X)
+#             # X = SimpleRNN(layers[0], dropout=0.55)(X)
+#             dense_start += 1        
+#         else: X = K.mean(X, axis=1, name='mean')
+#     else:
+#         sentence_indices = Input(input_shape, name="input")
+#         X = sentence_indices
+
+#     # The returned output should be a batch of sequences.
+#     for layer in range(dense_start, NumLyrs):
+#         X = Dense(layers[layer], activation='relu', name="dense_{}".format(layer))(X)
+#         X = Dropout(0.45, name="dropout_{}".format(layer))(X)
+#     X = Dense(dense_out, activation='softmax', name="dense_{}".format(NumLyrs))(X) # Number of classes
+#     # Create Model instance which converts sentence_indices into X.
+#     model = Model(inputs=sentence_indices, outputs=X, name=name)
+#     return model
+    
+    
 ## -- save and load keras model
 def save_keras_model(model, parameters, model_name, path='models'):
     data_path = os.path.join(path, model_name)
@@ -246,12 +282,19 @@ def save_keras_model(model, parameters, model_name, path='models'):
     with open(os.path.join(data_path, model_name+'_parameters.pkl'), 'wb') as fid:
         pickle.dump(parameters, fid)    
         
-def load_keras_model(model_name, path='models'):
+def load_keras_model(model_name, path='models'):#, w_mat=None):
     data_path = os.path.join(path, model_name)
     with open(os.path.join(data_path, model_name+'_parameters.pkl'), 'rb') as fid:
         parameters = pickle.load(fid)
     with open(os.path.join(data_path, model_name+'_architecture.json'), 'r') as f:
         model = model_from_json(f.read())
+    # dense_layers, opt_name, batch_size, lr, decay, int_category = parameters['param']
+    # cats = len(int_category)
+    # shape = (5000, 50, 300)
+    # input_shape = shape[1:] if 'w2v_lstm' in model_name else shape[2:] if 'w2v' in model_name else shape[:1]
+    # lstm = True if '_lstm_' in model_name else False
+    # model = modelBuild(input_shape, dense_layers, cats, w_mat=w_mat, lstm=lstm)
+    # print(model.summary())
     model.load_weights(os.path.join(data_path, model_name+'_weights.hdf5'))
     return model, parameters
     

@@ -29,7 +29,7 @@ class Evaluate(object):
         if not isinstance(data, pd.core.frame.DataFrame): raise TypeError("data must be a \"pandas dataframe\"")
         if not text_column in data.columns: raise ValueError("You didn't specify the correct column for the text data in the input dataframe")
 
-        self.__version__ = '3.1'
+        self.__version__ = '4.0b'
         self.data = data.copy()
         self.message = self.data[text_column].astype(str).copy()
         self.vect_type = 'w2v'
@@ -38,6 +38,7 @@ class Evaluate(object):
         self.predictions = None
         self.pred_count = 0
         self.majority_index = -1
+        self.maxlen = 50
         
         self.preprocess()
         
@@ -226,10 +227,26 @@ class Evaluate(object):
                 self.word_vectorizer = WordVecVectorizer(w2v_model) # Class defined in utilities.py
             else:
                 self.word_vectorizer = vect_model
+            
+            # #new
+            # with open("../Evaluation/models/vocabulary.pkl", 'rb') as fid:
+            #     word_to_int = pickle.load(fid)#new
 
             # Transformation
             print("Transforming data ...", end=' ')
             X = self.clean()
+            
+            # #new
+            # def prepare_sequence(seq, to_ix, max_length, tokens=True):
+            #     if tokens:
+            #         idxs = [to_ix[str(w)] for i,w in enumerate(seq.split()) if i < max_length]
+            #     else:
+            #         idxs = [to_ix[str(w)] for i,w in enumerate(seq) if i < max_length]
+            #     i = len(idxs)
+            #     idxs += [0]*(int(i<max_length)*(max_length-i))
+            #     return idxs
+            # X = np.array(X.apply(lambda x:prepare_sequence(x, word_to_int, self.maxlen, tokens=True)).to_list())#new
+            
             if lstm:
                 X = self.word_vectorizer.instance_transform(X) # transforms each word individually to the word2vec vector; returns shape=(len(X), max_len=50, word2vec_dim=300)
                 self.vect_type += '_lstm'
