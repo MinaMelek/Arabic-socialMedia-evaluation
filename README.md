@@ -1,6 +1,9 @@
 # Arabic-socialMedia-evaluation
 An **Arabic** language-based Sentiment detection and objective topics categorization system.
 
+**Download**
+Use `git lfs clone` and `git lfs pull` in order to download all files including lfs files.
+
 **NOTE:** The function use case is explained in the [`main.ipynb`](./main.ipynb) file.
 
 
